@@ -7,7 +7,7 @@ This program is created to help with the resourcepack conflicts problem cause by
 
 ### How to use
 First you have to open up terminal and then change your directory to where the program located using this command `cd <path to the folder>` and then run `python main.py <arguments> <output name>`  
-- \<arguments\> is the location of the resourcepacks can be many as you want, in this example I'll use `Resourcepack_1.zip` and `Resourcepack_2.zip` which is all inside folder called `input`.
+- \<arguments\> is the location of the resourcepacks can be as many as you want (separate by empty space " "), in this example I'll use `Resourcepack_1.zip` and `Resourcepack_2.zip` which is all inside folder called `input`.
 - \<output name\> is the name of the folder of the combined resourcepack can be anything.  
 
 So if we put all that together we'll get 

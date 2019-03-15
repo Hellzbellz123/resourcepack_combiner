@@ -12,9 +12,9 @@ First you have to open up terminal and then change your directory to where the p
 
 So if we put all that together we'll get 
 `python main.py "input/Resourcepack_1.zip" "input/Resourcepack_2.zip" "combined_resourcepack"`!  
-as you may have notice, it is quite a pain to list everysingle resourcepacks isn't it? worry not! you can also use the folder directory in the place of \<arguments\>
+as you may have notice, it is quite a pain to list every single resourcepacks isn't it? worry not! you can also use the folder directory in the place of \<arguments\>
 so if we use that feature we'll get  
 `python main.py input/ "combined_resourcepack"`
-which is a lot easier and it'll read every single resourcepack within that folder and merge it all together into one pack which will be inside newly created folder called `output/<output name>` (be careful not to put anything valueble in there it might get deleted!)
+which is a lot easier and it'll read every single resourcepack within that folder and merge it all together into one pack which will be inside newly created folder called `output/<output name>` (be careful not to put anything valuable in there it might get deleted!)
 ## Miscellaneous
 `conflict.log` : if the program ran into a conflict it'll write it down inside this file, if the conflicted file can be merge it'll say "Conflict found in: \<file name\> will try to merge conflict" BUT! this does not mean that it'll successfully merge everytime sometimes there are change that cannot be merge which you have to manually check yourself.

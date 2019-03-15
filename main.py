@@ -122,8 +122,12 @@ def run():
 			copyDirectory(file, './temp/')
 			conflicts = builder(file, filename, conflicts, extension)
 			
-	with create_file('./conflict.log') as f:
-		f.write('\n'.join(conflicts))
+	if len(conflicts) > 0:
+		with create_file('./conflict.log') as f:
+			f.write('\n'.join(conflicts))
+	
+	if os.path.exists('./temp/'):
+		shutil.rmtree('./temp/')
 
 if output_name is not '':
 	run()

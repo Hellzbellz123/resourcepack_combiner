@@ -1,0 +1,27 @@
+{
+  "name": "resourcepack_combiner",
+  "version": "0.0.1",
+  "description": "resourcepack combiner made by electron",
+  "main": "app.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "package-linux": "electron-packager . resourcepack_combiner --overwrite --platform=linux --asar=true --arch=x64 --prune=true --out=release",
+    "installer-debian": "electron-installer-debian --src release/resourcepack_combiner-linux-x64/ --arch amd64 --config debian.json"
+  },
+  "author": "Boomber",
+  "license": "GPL-3.0",
+  "dependencies": {
+    "del": "^4.1.0",
+    "extract-zip": "^1.6.7",
+    "google-fonts-offline": "^0.1.5",
+    "jquery": "^3.3.1",
+    "machinepack-zip": "^1.1.0",
+    "mkdirp": "^0.5.1",
+    "unzipper": "^0.9.11"
+  },
+  "devDependencies": {
+    "electron": "^4.1.4",
+    "electron-packager": "^13.1.1"
+  }
+}

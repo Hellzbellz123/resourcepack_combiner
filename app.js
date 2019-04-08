@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const del = require('del');
 const mkdirp = require('mkdirp');
-const extract = require('extract-zip');
+const {promisify} = require('util');
 const unzipper = require('unzipper');
 const workingDirectory = '.temp';
 
@@ -69,47 +69,60 @@ async function compile(file_list) {
 	let resultPath = path.join(__dirname, workingDirectory, 'result');
 	let promises = [];
 	let iteration = 0;
+	let memory = [];
 	for (let name in file_list) {
 		let file = file_list[name];
 		if (allowed_extension.includes(file.extension)) {
+			memory.push({});
 			let resourcePath = path.join(__dirname, workingDirectory, 'resource', `${iteration}`);
 			await del.sync([`${resourcePath}/**`, `!${resourcePath}`]);
 			await mkdirp(resourcePath, error => {if (error) console.trace(error);});
 			
 			fs.createReadStream(file.file)
 				.pipe(unzipper.Extract({path: resourcePath}).on('close', async () => {
-					walkAsync(resourcePath, {from: resourcePath, to: resultPath});
+					walkAsync(resourcePath, {from: resourcePath, to: resultPath, iteration: iteration}, memory);
 				}));
 			iteration++;
 		}
 	}
 }
 
-function walkAsync(src, target) {
-	fs.readdir(src, (error, files) => {
-		let result = [];
-		if (error) console.trace(error);
-		if (files) {
-			files.forEach(file => {
-				let file_path = path.join(src, file);
-				let target_path = file_path.replace(target.from, target.to);
-				fs.stat(file_path, (error, stats) => {
-					if (error) throw error; 
-					if (stats.isDirectory()) {
-						walkAsync(file_path, target);
-					}
-					else if (stats.isFile()) {
-						read_file(file_path, target_path);
-					}
-				});
-			});
+async function walkAsync(src, target, memory) {
+	let readDir = promisify(fs.readdir);
+	let getFileStat = promisify(fs.stat);
+	let mkdir = promisify(mkdirp);
+	await mkdir(src.replace(target.from, target.to)).catch(error => {throw error});
+	let files = await readDir(src).catch(error => {});
+	files.forEach(async file => {
+		let file_path = path.join(src, file);
+		let target_path = file_path.replace(target.from, target.to);
+		let stat = await getFileStat(target_path).catch(error => null);
+		if (stat) {
+			if (stat.isDirectory()) {
+				walkAsync(file_path, target, memory);
+			}
+			else if (stat.isFile()) {
+				readFile(file_path, target_path, target.iteration, memory);
+			}
 		}
 	});
 }
 
-function read_file(src, target) {
-	let data = fs.readFileSync(src)
-	console.log(data.toString());
+async function readFile(src, target, iteration, memory) {
+	let readFile = promisify(fs.readFile);
+	let src_data = await readFile(src).catch(error => null);
+	let target_data = await readFile(target).catch(error => null);
+	if (target_data === null) {
+		target_data = src_data;
+	}
+	memory[iteration].src_data = src_data.toString();
+	memory[iteration].target_data = target_data.toString();
+	console.log(memory);
+}
+
+function jsonComparison(src, target) {
+	let result = src;
+	return result;
 }
 
 async function rmdirAsync(path, callback) {

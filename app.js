@@ -9,6 +9,8 @@ const unzipper = require('unzipper');
 const archiver = require('archiver');
 const workingDirectory = path.join(__dirname.replace('app.asar', ''), '.temp');
 
+process.env.ENVIRONMENT = 'development';
+
 let windows = {};
 
 app.on('ready', () => {
@@ -22,7 +24,17 @@ app.on('ready', () => {
 	});
 });
 
-let mainMenuTemplate = [];
+let mainMenuTemplate = null;
+if (process.env.ENVIRONMENT !== 'production') {
+	mainMenuTemplate = [
+		{
+			'role': 'reload'
+		},
+		{
+			'role': 'toggleDevTools'
+		}
+	]
+}
 
 function createWindow(name, menu, file, properties, hidden = false) {
 	if(!windows[name]) {

@@ -90,13 +90,15 @@ function updateDom(list) {
 
 function encoder(string) {
 	return string
-		.replace(/'/g, '-_enc1_-')
-		.replace(/"/g, '-_enc2_-')
+		.replace(/\'/g, '-_enc1_-')
+		.replace(/\"/g, '-_enc2_-')
 		.replace(/\//g, '-_enc3_-')
 		.replace(/\\/g, '-_enc4_-')
 		.replace(/\[/g, '-_enc5_-')
-		.replace(/]/g, '-_enc6_-')
+		.replace(/\]/g, '-_enc6_-')
 		.replace(/\+/g, '-_enc7_-')
+		.replace(/\s/g, '-_enc8_-')
+		.replace(/\:/g, '-_enc9_-')
 }
 
 function decoder(string) {
@@ -108,6 +110,8 @@ function decoder(string) {
 		.replace(/-_enc5_-/g, '[')
 		.replace(/-_enc6_-/g, ']')
 		.replace(/-_enc7_-/g, '+')
+		.replace(/-_enc8_-/g, ' ')
+		.replace(/-_enc9_-/g, ':')
 }
 
 updateList();

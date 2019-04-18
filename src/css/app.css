@@ -88,20 +88,6 @@ section {
 	outline: none;
 }
 
-#action input {
-	background: #747d8c;
-	border: none;
-	margin: 0.5rem;
-	color: white;
-	font-size: 1.2rem;
-	padding: 0.1rem;
-}
-
-#action input::placeholder {
-	color: rgb(199, 199, 199);
-	font-size: 0.9rem;
-}
-
 #resourcepacks {
 	width: 80%;
 	height: inherit;

@@ -7,7 +7,7 @@ const mkdirp = require('mkdirp');
 const {promisify} = require('util');
 const unzipper = require('unzipper');
 const archiver = require('archiver');
-const workingDirectory = '.temp';
+const workingDirectory = path.join(__dirname.replace('app.asar', ''), '.temp');
 
 let windows = {};
 
@@ -47,17 +47,17 @@ function createWindow(name, menu, file, properties, hidden = false) {
 }
 
 ipcMain.on('request:compile', async (event, data) => {
-	compile(data['resourcepackList'], data['size'], data['fileName']);
+	compile(data['resourcepackList'], data['size'], data['file']);
 })
 
 async function compile(file_list, size, file_name) {
-	await del.sync([`${path.join(__dirname, workingDirectory)}/**`]);
+	await del.sync([`${path.join(workingDirectory)}/**`]);
 	
-	mkdirp(path.join(__dirname, workingDirectory, 'resource'), error => {if (error) console.trace(error);});
-	mkdirp(path.join(__dirname, workingDirectory, 'result'), error => {if (error) console.trace(error);});
+	mkdirp(path.join(workingDirectory, 'resource'), error => {if (error) console.trace(error);});
+	mkdirp(path.join(workingDirectory, 'result'), error => {if (error) console.trace(error);});
 	// * Check again just to be sure...
 	const allowed_extension = ['zip', '7z'];
-	let resultPath = path.join(__dirname, workingDirectory, 'result');
+	let resultPath = path.join(workingDirectory, 'result');
 	let promises = [];
 	let iteration = 0;
 	let memory = [];
@@ -65,7 +65,7 @@ async function compile(file_list, size, file_name) {
 		let file = file_list[name];
 		if (allowed_extension.includes(file.extension)) {
 			memory.push({});
-			let resourcePath = path.join(__dirname, workingDirectory, 'resource', `${iteration}`);
+			let resourcePath = path.join(workingDirectory, 'resource', `${iteration}`);
 			await mkdirp(resourcePath, error => {if (error) console.trace(error);});
 			
 			fs.createReadStream(file.file)
@@ -84,16 +84,14 @@ async function compile(file_list, size, file_name) {
 
 function zipped(file_name, file_path) {
 	if (file_name === '' || file_name === null || file_name === undefined) {
-		file_name = 'resourcepack_combiner.zip';
-	}
-	else {
-		file_name = file_name + '.zip';
+		file_name = './resourcepack_combiner.zip';
 	}
 	let zip = archiver('zip');
 	let output = fs.createWriteStream(file_name);
 
 	output.on('close', () => {
 		console.log(`${zip.pointer()} total bytes`);
+		del.sync([`${path.join(workingDirectory)}/**`]);
 	});
 
 	zip.on('error', error => {
@@ -149,7 +147,7 @@ async function compare(src_path, target_path, target, memory) {
 			target_data = src_data;
 		}
 	}
-	console.log(target_path);
+	//console.log(target_path);
 	await writeFile(target_path, target_data, {encoding: 'utf8', flag: 'w'}).catch(console.trace);
 	return true;
 }

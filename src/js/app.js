@@ -36,24 +36,17 @@ $('#add-file').click(() => {
 	});
 });
 
-$('#resourcepack-name').on('input', () => {
-	if ($('#resourcepack-name').val().replace(/[ '\n]/g, '').length) {
-		combinable = true;
-		$('#combine').removeClass('disable-click');
-	}
-	else {
-		combinable = false
-		$('#combine').addClass('disable-click');
-	}
-});
-
 $('#combine').click(() => {
-	combining();
+	dialog.showSaveDialog(currentWindow, {filters: [{name: 'Zip File', extensions: ['zip']}]}, file => {
+		if (file) {
+			combining(file);
+		}
+	});
 });
 
-function combining() {
+function combining(file) {
 	if (combinable) {
-		ipcRenderer.send('request:compile', {resourcepackList: resourcepackList, size: resourcepackCount, fileName: $('#resourcepack-name').val()});
+		ipcRenderer.send('request:compile', {resourcepackList: resourcepackList, size: resourcepackCount, file: file});
 		return true;
 	}
 	else {
@@ -86,7 +79,7 @@ function updateDom(list) {
 	resourcepackCount = 0;
 	for (let key in list) {
 		let item = list[key];
-		if (item.filename.endsWith('.zip') || item.filename.endsWith('.7zip') || item.filename.endsWith('.gz')) {
+		if (item.filename.endsWith('.zip') || item.filename.endsWith('.7z')) {
 			let encodedString = encoder(item.file);
 			target.append(template.replace('{name}', item.filename).replace('{file}', item.file).replace('{file_name}', encodedString).replace(/{id}/g, encodedString.replace(/\./g, '-')));
 		}

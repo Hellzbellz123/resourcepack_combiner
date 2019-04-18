@@ -9,7 +9,7 @@ const unzipper = require('unzipper');
 const archiver = require('archiver');
 const workingDirectory = path.join(__dirname.replace('app.asar', ''), '.temp');
 
-process.env.ENVIRONMENT = 'development';
+process.env.ENVIRONMENT = 'production';
 
 let windows = {};
 
@@ -36,6 +36,10 @@ if (process.env.ENVIRONMENT !== 'production') {
 	]
 }
 
+if (process.platform === 'darwin') {
+	mainMenuTemplate = [{}];
+}
+
 function createWindow(name, menu, file, properties, hidden = false) {
 	if(!windows[name]) {
 		windows[name] = new BrowserWindow(properties);
@@ -52,7 +56,7 @@ function createWindow(name, menu, file, properties, hidden = false) {
 		windows[name].on('closed', () => {
 			windows[name] = null;
 		});
-		windows[name].setMenu(menu === null ? menu: Menu.buildFromTemplate(process.platform === 'darwin' ? menu.unshift({}): menu));
+		windows[name].setMenu(menu === null ? menu: Menu.buildFromTemplate(menu));
 		return windows[name];
 	}
 	return null;

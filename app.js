@@ -6,6 +6,7 @@ const del = require('del');
 const mkdirp = require('mkdirp');
 const {promisify} = require('util');
 const unzipper = require('unzipper');
+const archiver = require('archiver');
 const workingDirectory = '.temp';
 
 let windows = {};
@@ -21,19 +22,7 @@ app.on('ready', () => {
 	});
 });
 
-let mainMenuTemplate = [
-	{
-		label: 'Developer',
-		submenu: [
-			{
-				role: 'reload'
-			},
-			{
-				role: 'toggleDevTools'
-			}
-		]
-	}
-]
+let mainMenuTemplate = [];
 
 function createWindow(name, menu, file, properties, hidden = false) {
 	if(!windows[name]) {
@@ -57,11 +46,13 @@ function createWindow(name, menu, file, properties, hidden = false) {
 	return null;
 }
 
-ipcMain.on('request:compile', (event, data) => {
-	compile(data);
+ipcMain.on('request:compile', async (event, data) => {
+	compile(data['resourcepackList'], data['size'], data['fileName']);
 })
 
-async function compile(file_list) {
+async function compile(file_list, size, file_name) {
+	await del.sync([`${path.join(__dirname, workingDirectory)}/**`]);
+	
 	mkdirp(path.join(__dirname, workingDirectory, 'resource'), error => {if (error) console.trace(error);});
 	mkdirp(path.join(__dirname, workingDirectory, 'result'), error => {if (error) console.trace(error);});
 	// * Check again just to be sure...
@@ -75,16 +66,43 @@ async function compile(file_list) {
 		if (allowed_extension.includes(file.extension)) {
 			memory.push({});
 			let resourcePath = path.join(__dirname, workingDirectory, 'resource', `${iteration}`);
-			await del.sync([`${resourcePath}/**`, `!${resourcePath}`]);
 			await mkdirp(resourcePath, error => {if (error) console.trace(error);});
 			
 			fs.createReadStream(file.file)
-				.pipe(unzipper.Extract({path: resourcePath}).on('close', async () => {
-					walkAsync(resourcePath, {from: resourcePath, to: resultPath, iteration: iteration}, memory);
-				}));
-			iteration++;
+			.pipe(unzipper.Extract({path: resourcePath}).on('close', async () => {
+				promises = [];
+				promises.push(walkAsync(resourcePath, {from: resourcePath, to: resultPath, iteration: iteration}, memory));
+				await Promise.all(promises);
+				iteration++;
+				if (iteration >= size) {
+					zipped(file_name, resultPath);
+				}
+			}));
 		}
 	}
+}
+
+function zipped(file_name, file_path) {
+	if (file_name === '' || file_name === null || file_name === undefined) {
+		file_name = 'resourcepack_combiner.zip';
+	}
+	else {
+		file_name = file_name + '.zip';
+	}
+	let zip = archiver('zip');
+	let output = fs.createWriteStream(file_name);
+
+	output.on('close', () => {
+		console.log(`${zip.pointer()} total bytes`);
+	});
+
+	zip.on('error', error => {
+		throw error;
+	});
+
+	zip.pipe(output);
+	zip.directory(file_path, '');
+	zip.finalize();
 }
 
 async function walkAsync(src, target, memory) {
@@ -93,78 +111,53 @@ async function walkAsync(src, target, memory) {
 	let mkdir = promisify(mkdirp);
 	await mkdir(src.replace(target.from, target.to)).catch(error => {throw error});
 	let files = await readDir(src).catch(error => {});
-	files.forEach(async file => {
+
+	let promise = [];
+
+	for (let file of files) {
 		let file_path = path.join(src, file);
 		let target_path = file_path.replace(target.from, target.to);
-		let stat = await getFileStat(target_path).catch(error => null);
+		let stat = await getFileStat(file_path).catch(error => error);
 		if (stat) {
 			if (stat.isDirectory()) {
-				walkAsync(file_path, target, memory);
+				promise.push(walkAsync(file_path, target, memory));
 			}
 			else if (stat.isFile()) {
-				readFile(file_path, target_path, target.iteration, memory);
+				promise.push(compare(file_path, target_path, target, memory));
 			}
 		}
-	});
-}
-
-async function readFile(src, target, iteration, memory) {
-	let readFile = promisify(fs.readFile);
-	let src_data = await readFile(src).catch(error => null);
-	let target_data = await readFile(target).catch(error => null);
-	if (target_data === null) {
-		target_data = src_data;
 	}
-	memory[iteration].src_data = src_data.toString();
-	memory[iteration].target_data = target_data.toString();
-	console.log(memory);
+
+	return Promise.all(promise);
 }
 
-function jsonComparison(src, target) {
-	let result = src;
-	return result;
+async function compare(src_path, target_path, target, memory) {
+	let readFile = promisify(fs.readFile);
+	let writeFile = promisify(fs.writeFile);
+	let extension = getExtension(target_path);
+	let src_data = await readFile(src_path).catch(error => null);
+	let target_data = await readFile(target_path).catch(error => null);
+	if (extension === 'json' || extension === 'mcmeta') {
+		src_data = JSON.parse(src_data == null ? '{}': src_data.toString());
+		target_data = JSON.parse(target_data == null ? '{}': target_data.toString());
+		temp_data = {};
+		temp_data = Object.assign(target_data, src_data);
+		target_data = JSON.stringify(temp_data, null, 2);
+	}
+	else {
+		if (target_data === null) {
+			target_data = src_data;
+		}
+	}
+	console.log(target_path);
+	await writeFile(target_path, target_data, {encoding: 'utf8', flag: 'w'}).catch(console.trace);
+	return true;
 }
 
-async function rmdirAsync(path, callback) {
-	await fs.readdir(path, function(err, files) {
-		if(err) {
-			// Pass the error on to callback
-			callback(err, []);
-			return;
-		}
-		let wait = files.length,
-		count = 0,
-		folderDone = function(err) {
-			count++;
-			// If we cleaned out all the files, continue
-			if( count >= wait || err) {
-				fs.rmdir(path, callback);
-			}
-		};
-		// Empty directory to bail early
-		if(!wait) {
-			folderDone();
-			return;
-		}
-		
-		// Remove one or more trailing slash to keep from doubling up
-		path = path.replace(/\/+$/, "");
-		files.forEach(file => {
-			let curPath = `${path}/${file}`;
-			fs.lstat(curPath, (err, stats) => {
-				if(err) {
-					callback(err, []);
-					return;
-				}
-				if(stats.isDirectory()) {
-					rmdirAsync(curPath, folderDone);
-				} else {
-					fs.unlink(curPath, folderDone);
-				}
-			});
-		});
-	});
-};
+function getExtension(path) {
+	let split = path.split('.');
+	return split[split.length - 1];
+}
 
 function encoder(string) {
 	return string

@@ -1,6 +1,6 @@
 {
   "name": "resourcepack_combiner",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "resourcepack combiner made by electron",
   "main": "app.js",
   "scripts": {
@@ -12,13 +12,11 @@
   "author": "Boomber",
   "license": "GPL-3.0",
   "dependencies": {
+    "archiver": "^3.0.0",
     "del": "^4.1.0",
-    "extract-zip": "^1.6.7",
     "google-fonts-offline": "^0.1.5",
     "jquery": "^3.3.1",
-    "machinepack-zip": "^1.1.0",
     "mkdirp": "^0.5.1",
-    "parse-json": "^4.0.0",
     "unzipper": "^0.9.11"
   },
   "devDependencies": {

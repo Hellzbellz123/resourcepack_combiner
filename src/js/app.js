@@ -1,24 +1,28 @@
 const {dialog} = require('electron').remote;
 const {ipcRenderer} = require('electron');
 const currentWindow = require('electron').remote.getCurrentWindow();
-const fs = require('fs');
-const mkdirp = require('mkdirp');
-const path = require('path');
 window.$ = window.Jquery = require('jquery');
 
 let combinable = true;
-let resourcepackList = {
-	'-_enc3_-home-_enc3_-boomber-_enc3_-programming-_enc3_-electron-_enc3_-resourcepack_combiner-_enc3_-test-_enc3_-a-_enc3_-hello.zip': {
-		file: '/home/boomber/programming/electron/resourcepack_combiner/test/a/hello.zip',
-		filename: 'hello.zip',
-		extension: '/home/boomber/programming/electron/resourcepack_combiner/test/a/hello.zip'.match(/(?!\.)\w+$/g)[0]
+/*
+	'-_enc3_-home-_enc3_-boomber-_enc3_-programming-_enc3_-electron-_enc3_-resourcepack_combiner-_enc3_-test-_enc3_-a.zip': {
+		file: '/home/boomber/programming/electron/resourcepack_combiner/test/a.zip',
+		filename: 'a.zip',
+		extension: '/home/boomber/programming/electron/resourcepack_combiner/test/a.zip'.match(/(?!\.)\w+$/g)[0]
+	},
+	'-_enc3_-home-_enc3_-boomber-_enc3_-programming-_enc3_-electron-_enc3_-resourcepack_combiner-_enc3_-test-_enc3_-b.zip': {
+		file: "/home/boomber/programming/electron/resourcepack_combiner/test/b.zip",
+		filename: "b.zip",
+		extension: "zip"
 	}
-};
+*/
+let resourcepackList = {};
+let resourcepackCount = 0;
 
 $('#add-file').click(() => {
 	dialog.showOpenDialog(currentWindow, {
 		filters: [
-			{name: 'Resourcepack File', extensions: ['zip', '7z', 'gz']}
+			{name: 'Resourcepack File', extensions: ['zip', '7z']}
 		], 
 		properties: ['openFile', 'multiSelections']
 	}, files => {
@@ -49,7 +53,7 @@ $('#combine').click(() => {
 
 function combining() {
 	if (combinable) {
-		ipcRenderer.send('request:compile', resourcepackList);
+		ipcRenderer.send('request:compile', {resourcepackList: resourcepackList, size: resourcepackCount, fileName: $('#resourcepack-name').val()});
 		return true;
 	}
 	else {
@@ -79,12 +83,15 @@ function updateDom(list) {
 	let target = $('#resourcepacks');
 	target.text('');
 
+	resourcepackCount = 0;
 	for (let key in list) {
 		let item = list[key];
 		if (item.filename.endsWith('.zip') || item.filename.endsWith('.7zip') || item.filename.endsWith('.gz')) {
 			let encodedString = encoder(item.file);
 			target.append(template.replace('{name}', item.filename).replace('{file}', item.file).replace('{file_name}', encodedString).replace(/{id}/g, encodedString.replace(/\./g, '-')));
 		}
+
+		resourcepackCount++;
 	}
 }
 

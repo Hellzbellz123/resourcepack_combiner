@@ -37,7 +37,7 @@ if (process.env.ENVIRONMENT !== 'production') {
 }
 
 if (process.platform === 'darwin') {
-	mainMenuTemplate = [{}];
+	mainMenuTemplate = [{}, {label: 'Resourcepack Combiner'}];
 }
 
 function createWindow(name, menu, file, properties, hidden = false) {

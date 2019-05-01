@@ -1,0 +1,97 @@
+html, head, body {
+	padding: 0;
+	margin: 0;
+	font-size: 100%;
+	overflow: hidden;
+}
+
+header {
+	min-height: 2rem;
+	display: flex;
+	justify-content: left;
+	font-size: 2rem;
+}
+
+header div {
+	margin: auto 0;
+	padding: 0;
+}
+
+section {
+	display: flex;
+	flex-direction: row;
+}
+
+#resourcepacks {
+	width: 80%;
+	height: 100%;
+	border: 1px solid rgb(49, 49, 49);
+	box-shadow: 1px 1px 5px -1px black;
+	background: white;
+}
+
+#resourcepacks div {
+	border: 1px solid rgb(109, 108, 108);
+	position: relative;
+	height: 1.3rem;
+	display: flex;
+	justify-content: center;
+}
+
+#resourcepacks div header {
+	position: absolute;
+	display: block;
+	left: 0;
+}
+
+#resourcepacks div section {
+	position: absolute;
+	display: none;
+	left: 0;
+}
+
+#resourcepacks div:hover header {
+	display: none;
+	cursor: default;
+}
+
+#resourcepacks div:hover section {
+	display: block;
+	cursor: default;
+}
+
+#resourcepacks div footer {
+	position: absolute;
+	display: block;
+	right: 0;
+	height: 100%;
+	width: 1.3rem;
+}
+
+#resourcepacks div footer button {
+	background: none;
+	border: none;
+	height: 100%;
+	width: 100%;
+	padding: 0;
+	margin: 0;
+}
+
+#resourcepacks div footer button:hover {
+	cursor: pointer;
+}
+
+#action {
+	height: 100%;
+	width: 20%;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	overflow: hidden;
+}
+
+#action .button {
+	margin: 0.5rem;
+	padding: 0.2rem 0.5rem;
+}

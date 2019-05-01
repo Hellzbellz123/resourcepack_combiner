@@ -1,0 +1,29 @@
+.item-container {
+	overflow-x: hidden;
+	overflow-y: scroll;
+}
+
+.item-container div {
+	min-height: 1rem;
+	font-size: 1rem;
+	margin: 0;
+}
+
+.item-container div header {
+	font-size: 1rem;
+	display: inline;
+}
+
+.item-container div section {
+	font-size: 1rem;
+	display: inline;
+}
+
+.item-container div footer {
+	font-size: 1rem;
+	display: inline;
+}
+
+.button {
+	overflow: hidden;
+}

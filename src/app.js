@@ -10,10 +10,8 @@ const md5 = require('md5');
 const isDarwin = (process.platform === 'darwin');
 const isLinux = (process.platform === 'linux');
 
-const workingDirectory = app.getAppPath('temp');
+const workingDirectory = path.join(app.getAppPath('temp'), 'temp');
 const appData = app.getAppPath('appData');
-
-console.log(workingDirectory);
 
 process.env.ENVIRONMENT = 'development';
 
@@ -135,7 +133,7 @@ function resolveResourcepack(file) {
 }
 
 async function compileResourcepack(event) {
-	//await del([path.join(workingDirectory, '**'), `!${workingDirectory}`]);
+	await del([path.join(workingDirectory, '**'), `!${workingDirectory}`]);
 	mkdirp(workingDirectory);
 }
 

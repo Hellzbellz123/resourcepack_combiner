@@ -30,6 +30,7 @@
     "del": "^4.1.0",
     "google-fonts-offline": "^0.1.5",
     "jquery": "^3.3.1",
+    "md5": "^2.2.1",
     "mkdirp": "^0.5.1",
     "npm": "^6.9.0",
     "unzipper": "^0.9.11"

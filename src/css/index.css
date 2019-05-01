@@ -22,6 +22,35 @@ section {
 	flex-direction: row;
 }
 
+#loader {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	background: #ffffff9a;
+	display: none;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	overflow: hidden;
+}
+
+#loader p {
+	font-size: 1.5rem;
+	margin: 0;
+}
+
+#loader .loading_container {
+	width: 80%;
+	height: 2rem;
+	background: rgb(219, 216, 216);
+}
+
+#loader .loading_container .progress {
+	background: rgb(34, 202, 34);
+}
+
 #resourcepacks {
 	width: 80%;
 	height: 100%;

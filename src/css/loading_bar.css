@@ -1,0 +1,9 @@
+.loading_container {
+	border-radius: 5px;
+	overflow: hidden;
+}
+
+.loading_container .progress {
+	width: 50%;
+	height: 100%;
+}

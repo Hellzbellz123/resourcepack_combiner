@@ -4,9 +4,6 @@ const combineButton = document.getElementById('combine');
 const progressBar = document.getElementById('loader');
 const {ipcRenderer} = require('electron');
 
-let maxProgress = 0;
-let currentProgress = 0;
-
 addButton.addEventListener('click', event => {
 	ipcRenderer.send('request:add_resourcepack', 'main');
 });
@@ -19,44 +16,38 @@ ipcRenderer.on('response:update_resourcepack', (event, data) => {
 	updateResourcepackList(data);
 });
 
-ipcRenderer.on('response:compile:init_length', (event, data) => {
-	enableProgressBar(data);
+ipcRenderer.on('response:compile:start', () => {
+	enableProgressBar();
 });
 
-ipcRenderer.on('response:compile:update_count', (event, data) => {
-	currentProgress = data;
-	console.log(data);
-	updateProgressBar();
+ipcRenderer.on('response:compile:end', () => {
+	disableProgressBar();
 });
 
-function enableProgressBar(i) {
+ipcRenderer.on('response:compile:update', (event, data) => {
+	updateProgressBar(data);
+});
+
+function enableProgressBar() {
+	const info = progressBar.querySelector('#loader_information');
+	const progress = progressBar.querySelector('.progress');
+
 	progressBar.style.display = 'flex';
-	maxProgress = i;
-	currentProgress = 0;
-	updateProgressBar();
+
+	info.innerText = '';
+	progress.style.width = '0%';
 }
 
 function disableProgressBar() {
 	progressBar.style.display = 'none';
-	maxProgress = 0;
-	currentProgress = 0;
 }
 
-function updateProgressBar() {
+function updateProgressBar(data) {
 	const info = progressBar.querySelector('#loader_information');
-	const outer = progressBar.querySelector('.loading_container');
-	const inner = progressBar.querySelector('.progress');
+	const progress = progressBar.querySelector('.progress');
 
-	info.innerText = `${currentProgress}/${maxProgress}`;
-	
-	let outerWidth = outer.offsetWidth;
-	let innerWidth = currentProgress/maxProgress;
-
-	inner.style.width = innerWidth * outerWidth;
-
-	if (currentProgress === maxProgress) {
-		disableProgressBar();
-	}
+	info.innerText = data.message;
+	progress.style.width = `${(data.current/data.max) * 100}%`;
 }
 
 function updateResourcepackList(resourcepacks) {

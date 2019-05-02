@@ -7,6 +7,7 @@ const {promisify} = require('util');
 const unzipper = require('unzipper');
 const archiver = require('archiver');
 const md5 = require('md5');
+
 const isDarwin = (process.platform === 'darwin');
 const isLinux = (process.platform === 'linux');
 
@@ -100,7 +101,16 @@ ipcMain.on('request:remove_resourcepack', (event, data) => {
 });
 
 ipcMain.on('request:compile_resourcepack', (event, data) => {
-	compileResourcepack(event);
+	dialog.showSaveDialog(windows[data], {
+		title: 'Resourcepack Combiner',
+		filters: [
+			{name: 'Resourcepack Files', extensions: ['zip']}
+		]
+	}, filename => {
+		if (filename) {
+			compileResourcepack(filename, event);
+		}
+	});
 });
 
 let resourcepacks = {};
@@ -138,10 +148,14 @@ function resolveResourcepack(file) {
 	};
 }
 
-async function compileResourcepack(event) {
+async function compileResourcepack(file, event) {
 
-	console.log(`Start compiling resourcepack`);
-	event.reply('response:compile:start');
+	// Hand out event object to other functions
+	// Also use to sync 'current' and 'max' value
+	let progress = {current: 0, max: 0, event: event};
+
+	// Display progress bar
+	event.reply('response:compile:start', {message: 'Setting thing up...', current: 0, max: 0});
 
 	const resourceDirectory = path.join(workingDirectory, 'resource');
 	const resultDirectory = path.join(workingDirectory, 'result');
@@ -149,19 +163,26 @@ async function compileResourcepack(event) {
 	mkdirp.sync(resourceDirectory);
 	mkdirp.sync(resultDirectory);
 
-	console.log(`Start unzipping resourcepacks`);
 	let index = 0;
 	let promises = [];
+
+	progress.max = Object.keys(resourcepacks).length;
+
+	// Unzipping file...
+	event.reply('response:compile:update', {message: 'Unzipping file...', current: progress.current, max: progress.max});
+
 	for (let id in resourcepacks) {
 		let resourcepack = resourcepacks[id];
 		let source = resourcepack.path;
 		let target = path.join(resourceDirectory, `${index}`);
-		promises.push(unzipFile(source, target));
+		promises.push(unzipFile(source, target, progress));
 		index++;
 	}
 
+	// Wait for all unzipper to unzip files
 	await Promise.all(promises);
-	promises = [];
+
+	// loop through each "resource" directory and walk over them
 	let data = [];
 	let subdir = await fsReadDir(resourceDirectory);
 	for (let dir of subdir) {
@@ -169,15 +190,21 @@ async function compileResourcepack(event) {
 		data.push(walkDirectory(directory, directory));
 	}
 
+	// Wait for everything to finish walking
 	let messyList = [];
 	for await (let element of data) {
 		messyList.push(element);
 	}
 
-	console.log(`Start separating files`);
-	let maxProgress = 0;
+	// Ordering files
+	event.reply('response:compile:update', {message: 'Ordering files...', current: 1, max: 1});
+
 	let nonDupeList = {};
 	let dupeList = {};
+
+	progress.max = 0;
+
+	// Go through each "resource index" and check if file is duplicated
 	for (let i = 0; i < messyList.length; i++) {
 		let element = messyList[i];
 		for (let id in element) {
@@ -188,27 +215,28 @@ async function compileResourcepack(event) {
 					dupeList[id] = [];
 				}
 				dupeList[id].push(item);
-				maxProgress += 1;
+				progress.max += 1;
 			}
 			else {
 				nonDupeList[id] = item;
-				maxProgress += 1;
+				progress.max += 1;
 			}
 		}
 	}
 
-	let currentProgress = {i: 0, event: event};
-	event.reply('response:compile:init_length', maxProgress);
+	// Comparing files...
+	event.reply('response:compile:update', {message: 'Comparing files...', current: 1, max: 1});
 
-	console.log(`Start copying non-duplicate files`);
+	// Loop through non-duplicate list and copy them to "result" first
 	for (let id in nonDupeList) {
 		let file = nonDupeList[id];
 		let source = file.path;
 		let target = source.replace(file.from, resultDirectory);
-		pipeFile(source, target, currentProgress);
+		pipeFile(source, target, progress);
 	}
 
-	console.log(`Start comparing duplicate files`);
+	// Loop through duplicate list, copy the first element and compare other elements with the first
+	promises = [];
 	for (let id in dupeList) {
 		let element = dupeList[id];
 		for (let i = 0; i < element.length; i++) {
@@ -216,24 +244,33 @@ async function compileResourcepack(event) {
 			let source = item.path;
 			let target = source.replace(item.from, resultDirectory);
 			if (i > 0) {
-				compareFile(source, target, currentProgress);
+				promises.push(compareFile(source, target, progress));
 			}
 			else {
-				pipeFile(source, target, currentProgress);
+				promises.push(pipeFile(source, target, progress));
 			}
 		}
 	}
+
+	// Wait for everything to finish
+	await Promise.all(promises);
+
+	// Clear message
+	event.reply('response:compile:update', {message: '', current: 0, max: 0});
+
+	// Zipping files
+	zipFile(resultDirectory, file, progress);
 }
 
 async function compareFile(source, target, progress) {
 	let extension = getExtension(target);
-	let src_data = fsReadFile(source).catch(error => null);
+	let src_data = fsReadFile(source).catch(error => '');
 	let target_data = fsReadFile(target).catch(error => null);
 	let data = await Promise.all([src_data, target_data]);
 	let source_result, target_result;
 	if (extension === 'json' || extension === 'mcmeta') {
-		source_result = JSON.parse(data[0] == null ? '{}': data[0].toString());
-		target_result = JSON.parse(data[1] == null ? '{}': data[1].toString());
+		source_result = JSON.parse(data[0] === null ? '{}': data[0].toString());
+		target_result = JSON.parse(data[1] === null ? '{}': data[1].toString());
 		temp_data = {};
 		temp_data = Object.assign(source_result, target_result);
 		target_result = JSON.stringify(temp_data, null, 2);
@@ -244,9 +281,9 @@ async function compareFile(source, target, progress) {
 		}
 	}
 	await fsWriteFile(target, data[1]).catch(console.trace);
-	progress.i += 1;
-	progress.event.reply('response:compile:update_count', progress.i);
-	console.log(`[${progress.i}] Done comparing file from ${source} to ${target}`);
+	progress.current += 1;
+	progress.event.reply('response:compile:update', {message: `File Comparison - ${progress.current}/${progress.max}`, current: progress.current, max: progress.max});
+	return true;
 }
 
 async function pipeFile(source, target, progress) {
@@ -254,10 +291,10 @@ async function pipeFile(source, target, progress) {
 	mkdirp.sync(directory);
 	let sourceStream = fs.createReadStream(source);
 	let targetStream = fs.createWriteStream(target);
-	sourceStream.pipe(targetStream).on('close', () => {
-		progress.i += 1;
-		progress.event.reply('response:compile:update_count', progress.i);
-		console.log(`[${progress.i}] Done piping file from ${source} to ${target}`);
+	return sourceStream.pipe(targetStream).on('close', () => {
+		progress.current += 1;
+		progress.event.reply('response:compile:update', {message: `File Comparison - ${progress.current}/${progress.max}`, current: progress.current, max: progress.max});
+		return true;
 	});
 }
 
@@ -278,11 +315,14 @@ function isDuplicate(id, data, ownIndex) {
 	return false;
 }
 
-async function unzipFile(source, target) {
-	console.log(`Unzipping file from ${source} to ${target}`);
+async function unzipFile(source, target, progress) {
 	mkdirp.sync(target);
 	return fs.createReadStream(source)
 		.pipe(unzipper.Extract({path: target}))
+		.on('close', () => {
+			progress.current += 1;
+			progress.event.reply('response:compile:update', {message: `Unzipping File - ${progress.current}/${progress.max}`, current: progress.current, max: progress.max})
+		})
 		.promise();
 }
 
@@ -308,73 +348,39 @@ async function walkDirectory(directory, rootDirectory) {
 	return result;
 }
 
-function zipped(file_name, file_path) {
-	if (file_name === '' || file_name === null || file_name === undefined) {
-		file_name = './resourcepack_combiner.zip';
+function zipFile(source, target, progress) {
+	if (target === '' || target === null || target === undefined) {
+		target = 'resourcepack_combiner.zip';
 	}
-	let zip = archiver('zip');
-	let output = fs.createWriteStream(file_name);
 
-	output.on('close', () => {
-		console.log(`${zip.pointer()} total bytes`);
-		del.sync([`${path.join(workingDirectory)}/**`]);
+	progress.event.reply('response:compile:update', {message: 'Start zipping files...', current: 0, max: 0});
+
+	let zipper = archiver('zip', {
+		zlib: {level: 9}
+	});
+	let stream = fs.createWriteStream(target);
+
+	stream.on('close', () => {
+		progress.event.reply('response:compile:update', {message: zipper.pointer(), current: 1, max: 1});
+		console.log(`${zipper.pointer()} total bytes`);
+		progress.event.reply('response:compile:end');
+		del.sync([`${path.join(workingDirectory, '**')}`]);
 	});
 
-	zip.on('error', error => {
+	zipper.on('error', error => {
 		throw error;
 	});
 
-	zip.pipe(output);
-	zip.directory(file_path, '');
-	zip.finalize();
-}
+	zipper.on('progress', p => {
+		progress.event.reply('response:compile:update', {message: `Zipping File - ${p.entries.processed}/${p.entries.total}`, current: p.entries.processed, max: p.entries.total});
+	});
 
-async function compare(src_path, target_path, target, memory) {
-	let readFile = promisify(fs.readFile);
-	let writeFile = promisify(fs.writeFile);
-	let extension = getExtension(target_path);
-	let src_data = await readFile(src_path).catch(error => null);
-	let target_data = await readFile(target_path).catch(error => null);
-	if (extension === 'json' || extension === 'mcmeta') {
-		src_data = JSON.parse(src_data == null ? '{}': src_data.toString());
-		target_data = JSON.parse(target_data == null ? '{}': target_data.toString());
-		temp_data = {};
-		temp_data = Object.assign(target_data, src_data);
-		target_data = JSON.stringify(temp_data, null, 2);
-	}
-	else {
-		if (target_data === null) {
-			target_data = src_data;
-		}
-	}
-	//console.log(target_path);
-	let promise = writeFile(target_path, target_data, {encoding: 'utf8', flag: 'w'}).catch(console.trace);
-	return promise;
+	zipper.pipe(stream);
+	zipper.directory(source, '');
+	zipper.finalize();
 }
 
 function getExtension(path) {
 	let split = path.split('.');
 	return split[split.length - 1];
-}
-
-function encoder(string) {
-	return string
-		.replace(/'/g, '-_enc1_-')
-		.replace(/"/g, '-_enc2_-')
-		.replace(/\//g, '-_enc3_-')
-		.replace(/\\/g, '-_enc4_-')
-		.replace(/\[/g, '-_enc5_-')
-		.replace(/]/g, '-_enc6_-')
-		.replace(/\+/g, '-_enc7_-')
-}
-
-function decoder(string) {
-	return string
-		.replace(/-_enc1_-/g, '\'')
-		.replace(/-_enc2_-/g, '"')
-		.replace(/-_enc3_-/g, '/')
-		.replace(/-_enc4_-/g, '\\')
-		.replace(/-_enc5_-/g, '[')
-		.replace(/-_enc6_-/g, ']')
-		.replace(/-_enc7_-/g, '+')
 }

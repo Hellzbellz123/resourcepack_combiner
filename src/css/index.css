@@ -65,6 +65,7 @@ section {
 	height: 1.3rem;
 	display: flex;
 	justify-content: center;
+	overflow: hidden;
 }
 
 #resourcepacks div header {
@@ -122,5 +123,5 @@ section {
 
 #action .button {
 	margin: 0.5rem;
-	padding: 0.2rem 0.5rem;
+	padding: 0.5rem 0.9rem;
 }

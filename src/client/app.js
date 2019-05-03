@@ -70,9 +70,9 @@ function createWindow(name, menu, file, properties, hidden = false) {
 		windows[name].on('closed', () => {
 			windows[name] = null;
 		});
-		if (menu !== null) {
-			windows[name].setMenu(menu === [] ? null: Menu.buildFromTemplate(menu));
-		}
+		// if (menu !== null) {
+		// 	windows[name].setMenu(menu === [] ? null: Menu.buildFromTemplate(menu));
+		// }
 
 		return windows[name];
 	}

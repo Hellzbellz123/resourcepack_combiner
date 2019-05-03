@@ -69,3 +69,23 @@ function updateResourcepackList(resourcepacks) {
 function removeThis(id) {
 	ipcRenderer.send('request:remove_resourcepack', id);
 }
+
+ipcRenderer.on('request:autoupdater:checking', (event, data) => {
+	console.log(data);
+});
+
+ipcRenderer.on('request:autoupdater:message', (event, data) => {
+	console.log(data);
+});
+
+ipcRenderer.on('request:autoupdater:error', (event, data) => {
+	console.log(data);
+});
+
+ipcRenderer.on('request:autoupdater:progress', (event, data) => {
+	console.log(data);
+});
+
+ipcRenderer.on('request:autoupdater:downloaded', (event, data) => {
+	console.log(data);
+});

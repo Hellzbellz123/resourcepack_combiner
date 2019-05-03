@@ -1,4 +1,4 @@
-const {app, BrowserWindow, Menu, ipcMain, dialog} = require('electron');
+const app = require('./app');
 const path = require('path');
 const fs = require('fs');
 const del = require('del');
@@ -8,100 +8,16 @@ const unzipper = require('unzipper');
 const archiver = require('archiver');
 const md5 = require('md5');
 
-const isDarwin = (process.platform === 'darwin');
-const isLinux = (process.platform === 'linux');
-
-const workingDirectory = path.join(app.getAppPath('temp'), 'temp');
-const appData = app.getAppPath('appData');
-
 const fsReadDir = promisify(fs.readdir);
 const fsReadFile = promisify(fs.readFile);
 const fsWriteFile = promisify(fs.writeFile);
 
-process.env.ENVIRONMENT = 'development';
+const workingDirectory = app.location.workingDirectory;
 
-let windows = {};
+let resourcepacks = {};
 
-app.on('ready', () => {
-	let mainWin = createWindow('main', mainMenuTemplate, '/src/html/index.html', {
-		minHeight: 300,
-		minWidth: 300,
-		webPreferences: {nodeIntegration: true}
-	});
-	mainWin.on('closed', () => {
-		app.quit();
-	});
-});
-
-app.on('window-all-closed', () => {
-	if (!isDarwin) {
-		app.quit();
-	}
-});
-
-let mainMenuTemplate = [];
-
-if (isDarwin) {
-	mainMenuTemplate = [{}, {label: 'Resourcepack Combiner'}];
-}
-
-if (isLinux) {
-	app.disableHardwareAcceleration();
-}
-
-if (process.env.ENVIRONMENT !== 'production') {
-	mainMenuTemplate.push({
-		'label': 'Developer',
-		'submenu': [
-			{
-				role: 'reload'
-			},
-			{
-				role: 'toggleDevTools'
-			}
-		]
-	})
-}
-
-function createWindow(name, menu, file, properties, hidden = false) {
-	if(!windows[name]) {
-		windows[name] = new BrowserWindow(properties);
-		windows[name].loadFile(path.join(appData, file));
-		if (!hidden) {
-			windows[name].on('ready-to-show', () => {
-				windows[name].show();
-			});
-		}
-		windows[name].on('closed', () => {
-			windows[name] = null;
-		});
-		if (menu !== null) {
-			windows[name].setMenu(menu === [] ? null: Menu.buildFromTemplate(menu));
-		}
-
-		return windows[name];
-	}
-	return null;
-}
-
-ipcMain.on('message:message', (event, message) => {
-	console.log(message);
-})
-
-ipcMain.on('message:error', (event, error) => {
-	if (error) throw error;
-})
-
-ipcMain.on('request:add_resourcepack', (event, data) => {
-	addResourcepacks(event, data);
-});
-
-ipcMain.on('request:remove_resourcepack', (event, data) => {
-	removeResourcepack(event, data);
-});
-
-ipcMain.on('request:compile_resourcepack', (event, data) => {
-	dialog.showSaveDialog(windows[data], {
+let preCompileResourcepack = function(event, data) {
+	app.dialog.showSaveDialog(app.windows[data], {
 		title: 'Resourcepack Combiner',
 		filters: [
 			{name: 'Resourcepack Files', extensions: ['zip']}
@@ -111,12 +27,10 @@ ipcMain.on('request:compile_resourcepack', (event, data) => {
 			compileResourcepack(filename, event);
 		}
 	});
-});
+}
 
-let resourcepacks = {};
-
-function addResourcepacks(event, windowName) {
-	dialog.showOpenDialog(windows[windowName], {
+let addResourcepacks = function(event, windowName) {
+	app.dialog.showOpenDialog(app.windows[windowName], {
 		title: 'Resourcepack Combiner',
 		filters: [
 			{name: 'Resourcepack Files', extensions: ['zip']}
@@ -133,7 +47,7 @@ function addResourcepacks(event, windowName) {
 	});
 }
 
-function removeResourcepack(event, id) {
+let removeResourcepack = function(event, id) {
 	delete resourcepacks[id];
 	event.reply('response:update_resourcepack', resourcepacks);
 }
@@ -148,7 +62,7 @@ function resolveResourcepack(file) {
 	};
 }
 
-async function compileResourcepack(file, event) {
+let compileResourcepack = async function(file, event) {
 
 	// Hand out event object to other functions
 	// Also use to sync 'current' and 'max' value
@@ -159,7 +73,7 @@ async function compileResourcepack(file, event) {
 
 	const resourceDirectory = path.join(workingDirectory, 'resource');
 	const resultDirectory = path.join(workingDirectory, 'result');
-	await del([path.join(workingDirectory, '**')]);
+	await del([path.join(workingDirectory, '**')], {force: true});
 	mkdirp.sync(resourceDirectory);
 	mkdirp.sync(resultDirectory);
 
@@ -239,15 +153,22 @@ async function compileResourcepack(file, event) {
 	promises = [];
 	for (let id in dupeList) {
 		let element = dupeList[id];
+		let localPromise;
 		for (let i = 0; i < element.length; i++) {
+			await localPromise;
+			localPromise = null;
 			let item = element[i];
 			let source = item.path;
 			let target = source.replace(item.from, resultDirectory);
 			if (i > 0) {
-				promises.push(compareFile(source, target, progress));
+				let p = compareFile(source, target, progress);
+				promises.push(p);
+				localPromise = p;
 			}
 			else {
-				promises.push(pipeFile(source, target, progress));
+				let p = pipeFile(source, target, progress);
+				promises.push(p);
+				localPromise = p;
 			}
 		}
 	}
@@ -262,18 +183,26 @@ async function compileResourcepack(file, event) {
 	zipFile(resultDirectory, file, progress);
 }
 
-async function compareFile(source, target, progress) {
+let compareFile = async function(source, target, progress) {
 	let extension = getExtension(target);
-	let src_data = fsReadFile(source).catch(error => '');
-	let target_data = fsReadFile(target).catch(error => null);
+	let src_data = fsReadFile(source).catch(console.log);
+	let target_data = fsReadFile(target).catch(console.log);
 	let data = await Promise.all([src_data, target_data]);
+
 	let source_result, target_result;
 	if (extension === 'json' || extension === 'mcmeta') {
-		source_result = JSON.parse(data[0] === null ? '{}': data[0].toString());
-		target_result = JSON.parse(data[1] === null ? '{}': data[1].toString());
-		temp_data = {};
-		temp_data = Object.assign(source_result, target_result);
-		target_result = JSON.stringify(temp_data, null, 2);
+
+			console.log(`[${progress.current}/${progress.max}] Comparing ${source} to ${target}`);
+			console.log(`source: ${data[0].toString()}`);
+			console.log(`target: ${data[1].toString()}`);
+
+			let source_file = !data[0] ? '': data[0].toString();
+			let target_file = !data[1] ? '': data[1].toString();
+			source_result = JSON.parse(!source_file ? '{}': source_file);
+			target_result = JSON.parse(!target_file ? '{}': target_file);
+			temp_data = {};
+			temp_data = Object.assign(source_result, target_result);
+			target_result = JSON.stringify(temp_data, null, 2);
 	}
 	else {
 		if (data[1] === null) {
@@ -286,7 +215,7 @@ async function compareFile(source, target, progress) {
 	return true;
 }
 
-async function pipeFile(source, target, progress) {
+let pipeFile = async function(source, target, progress) {
 	let directory = getDirectory(target);
 	mkdirp.sync(directory);
 	let sourceStream = fs.createReadStream(source);
@@ -298,12 +227,12 @@ async function pipeFile(source, target, progress) {
 	});
 }
 
-function getDirectory(file) {
+let getDirectory = function(file) {
 	return file.match(/(.*)[\/\\]/g)[0];
 
 }
 
-function isDuplicate(id, data, ownIndex) {
+let isDuplicate = function(id, data, ownIndex) {
 	for (let i = 0; i < data.length; i++) {
 		if (i !== ownIndex) {
 			let element = data[i];
@@ -315,7 +244,7 @@ function isDuplicate(id, data, ownIndex) {
 	return false;
 }
 
-async function unzipFile(source, target, progress) {
+let unzipFile = async function(source, target, progress) {
 	mkdirp.sync(target);
 	return fs.createReadStream(source)
 		.pipe(unzipper.Extract({path: target}))
@@ -326,7 +255,7 @@ async function unzipFile(source, target, progress) {
 		.promise();
 }
 
-async function walkDirectory(directory, rootDirectory) {
+let walkDirectory = async function(directory, rootDirectory) {
 	let result = {};
 	let fileStat = promisify(fs.stat);
 	let files = await fsReadDir(directory);
@@ -348,7 +277,7 @@ async function walkDirectory(directory, rootDirectory) {
 	return result;
 }
 
-function zipFile(source, target, progress) {
+let zipFile = function(source, target, progress) {
 	if (target === '' || target === null || target === undefined) {
 		target = 'resourcepack_combiner.zip';
 	}
@@ -364,7 +293,7 @@ function zipFile(source, target, progress) {
 		progress.event.reply('response:compile:update', {message: zipper.pointer(), current: 1, max: 1});
 		console.log(`${zipper.pointer()} total bytes`);
 		progress.event.reply('response:compile:end');
-		del.sync([`${path.join(workingDirectory, '**')}`]);
+		del([`${path.join(workingDirectory, '**')}`], {force: true});
 	});
 
 	zipper.on('error', error => {
@@ -380,7 +309,22 @@ function zipFile(source, target, progress) {
 	zipper.finalize();
 }
 
-function getExtension(path) {
+let getExtension = function(path) {
 	let split = path.split('.');
 	return split[split.length - 1];
 }
+
+module.exports = {
+	addResourcepacks: addResourcepacks,
+	removeResourcepack: removeResourcepack,
+	preCompileResourcepack: preCompileResourcepack,
+	getDirectory: getDirectory,
+	getExtension: getExtension,
+	zipFile: zipFile,
+	compileResourcepack: compileResourcepack,
+	compareFile: compareFile,
+	pipeFile: pipeFile,
+	isDuplicate: isDuplicate,
+	walkDirectory: walkDirectory,
+	unzipFile: unzipFile
+};
